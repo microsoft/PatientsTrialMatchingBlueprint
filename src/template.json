@@ -1,0 +1,515 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "serviceName": {
+            "defaultValue": "trial-patient-match",
+            "type": "String"
+        },
+        "acrServer": {
+            "type": "string",
+            "defaultValue": "ctmprod.azurecr.io"
+        },
+        "ds4hServer": { //TODO remove when fhir input avilable in ds4h
+            "type": "string"
+        },
+        "ta4hServer": {  //TODO remove when fhir avialable in hosted
+            "type": "string"
+        },
+        "fhirServer": {
+            "type": "string"
+        },
+        "acrUsername": {
+            "type": "string",
+            "defaultValue": "ctmprodreader"
+        },
+        "acrPassword": {
+            "type": "securestring"
+        },
+        "serviceImageName": {
+            "type": "string",
+            "defaultValue": "positive-trial-matcher"
+        },
+        "serviceImageTag": {
+            "type": "string",
+            "defaultValue": "latest"
+        },
+         "nameSuffix": {
+            "type": "string",
+            "defaultValue": "[resourceGroup().location]"
+        },
+        "resourceTags": {
+            "type": "object",
+            "defaultValue": {
+                "Project": "Trial Patient Match"
+            }
+        }
+    },
+    "variables": {
+        //Names
+        "location": "[resourceGroup().location]",
+        "suffix": "[concat('-',parameters('nameSuffix'))]",
+        "webappName": "[concat(parameters('serviceName'),'-webapp', variables('suffix'))]",
+        "keyVaultName": "[concat(parameters('serviceName'), '-kv', variables('suffix'))]", //override if keyvault name is too long
+        "servicePlaneName": "[concat(parameters('serviceName'),'-plan',variables('suffix'))]",
+        "appInsightsInstanceName": "[concat(parameters('serviceName'),'-ai',variables('suffix'))]",
+        "appInsightsWorkspaceName": "[concat(parameters('serviceName'),'-log',variables('suffix'))]",
+        "cognitiveServicesName": "[concat(parameters('serviceName'),'-cog', variables('suffix'))]",
+        "cognitiveservicesid": "[concat(resourceGroup().id,'/providers/','Microsoft.CognitiveServices/accounts/', variables('cognitiveServicesName'))]"
+    },
+    "resources": [
+        //TODO: add appinsight?
+        {
+            "type": "Microsoft.KeyVault/vaults",
+            "apiVersion": "2021-11-01-preview",
+            "name": "[variables('keyVaultName')]",
+            "location": "[variables('location')]",
+            "tags": "[parameters('resourceTags')]",
+            "properties": {
+                "sku": {
+                    "family": "A",
+                    "name": "Standard"
+                },
+                "tenantId": "[subscription().tenantId]",
+                "accessPolicies": [
+                    {
+                        "tenantId": "[reference(resourceId('Microsoft.Web/sites',variables('webappName')), '2015-08-01', 'Full').Identity.tenantId]",
+                        "objectId": "[reference(resourceId('Microsoft.Web/sites',variables('webappName')), '2015-08-01', 'Full').Identity.principalId]",
+                        "permissions": {
+                            "secrets": [
+                                "Get",
+                                "List"
+                            ]
+                        }
+                    }
+                ],
+                "enabledForDeployment": false,
+                "enabledForDiskEncryption": false,
+                "enabledForTemplateDeployment": false,
+                "enableSoftDelete": true,
+                "softDeleteRetentionInDays": 90,
+                "enableRbacAuthorization": false,
+                "vaultUri": "[concat('https://', variables('keyVaultName'), '.vault.azure.net/')]",
+                "provisioningState": "Succeeded",
+                "publicNetworkAccess": "Enabled",
+                "dependsOn": [
+                    "[resourceId('Microsoft.Web/sites', variables('webappName'))]"
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(variables('keyVaultName'), '/DS4HTrialMatcherConfiguration--APIMSubscriptionKey')]",
+            "apiVersion": "2016-10-01",
+            "tags": "[parameters('resourceTags')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults/', variables('keyVaultName'))]",
+                "[resourceId('Microsoft.CognitiveServices/accounts', variables('cognitiveServicesName'))]"
+            ],
+            "properties": {
+                 "value": "[listKeys(variables('cognitiveservicesid'),'2021-10-01').key1]"
+            }
+        },
+         {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(variables('keyVaultName'), '/AyalonConfiguration--APIMSubscriptionKey')]",
+            "apiVersion": "2016-10-01",
+            "tags": "[parameters('resourceTags')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults/', variables('keyVaultName'))]",
+                "[resourceId('Microsoft.CognitiveServices/accounts', variables('cognitiveServicesName'))]"
+            ],
+            "properties": {
+                "value": "[listKeys(variables('cognitiveservicesid'),'2021-10-01').key1]"
+            }
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "name": "[concat(variables('keyVaultName'), '/ApplicationInsightConfiguration--InstrumentationKey')]",
+            "apiVersion": "2016-10-01",
+            "tags": "[parameters('resourceTags')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults/', variables('keyVaultName'))]",
+                "[resourceId('microsoft.insights/components/', variables('appInsightsInstanceName'))]"
+            ],
+            "properties": {
+                "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsInstanceName')), '2014-04-01').InstrumentationKey]"
+            }
+        },
+        {
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2021-03-01",
+            "name": "[variables('servicePlaneName')]",
+            "location": "[variables('location')]",
+            "tags": "[parameters('resourceTags')]",
+            "sku": {
+                "name": "P1v2",
+                "tier": "PremiumV2",
+                "size": "P1v2",
+                "family": "Pv2",
+                "capacity": 1
+            },
+            "kind": "linux",
+            "properties": {
+                "perSiteScaling": false,
+                "elasticScaleEnabled": false,
+                "maximumElasticWorkerCount": 1,
+                "isSpot": false,
+                "reserved": true,
+                "isXenon": false,
+                "hyperV": false,
+                "targetWorkerCount": 0,
+                "targetWorkerSizeId": 0,
+                "zoneRedundant": false
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2021-03-01",
+            "name": "[variables('webappName')]",
+            "location": "[variables('location')]",
+            "tags": "[parameters('resourceTags')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', variables('servicePlaneName'))]"
+            ],
+            "kind": "app,linux,container",
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "enabled": true,
+                "hostNameSslStates": [
+                    {
+                        "name": "[concat(variables('webappName'), '.azurewebsites.net')]",
+                        "sslState": "Disabled",
+                        "hostType": "Standard"
+                    },
+                    {
+                        "name": "[concat(variables('webappName'), '.scm.azurewebsites.net')]",
+                        "sslState": "Disabled",
+                        "hostType": "Repository"
+                    }
+                ],
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('servicePlaneName'))]",
+                "reserved": true,
+                "isXenon": false,
+                "hyperV": false,
+                "vnetRouteAllEnabled": false,
+                "vnetImagePullEnabled": false,
+                "vnetContentShareEnabled": false,
+                "scmSiteAlsoStopped": false,
+                "clientAffinityEnabled": false,
+                "clientCertEnabled": false,
+                "clientCertMode": "Required",
+                "hostNamesDisabled": false,
+                "containerSize": 0,
+                "dailyMemoryTimeQuota": 0,
+                "httpsOnly": true,
+                "redundancyMode": "None",
+                "storageAccountRequired": false,
+                "keyVaultReferenceIdentity": "SystemAssigned"
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites/config",
+            "apiVersion": "2021-03-01",
+            "name": "[concat(variables('webappName'), '/web')]",
+            "location": "East US",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', variables('webappName'))]",
+                "[resourceId('Microsoft.CognitiveServices/accounts', variables('cognitiveServicesName'))]"
+            ],
+            "properties": {
+                "numberOfWorkers": 1,
+                "defaultDocuments": [
+                    "Default.htm",
+                    "Default.html",
+                    "Default.asp",
+                    "index.htm",
+                    "index.html",
+                    "iisstart.htm",
+                    "default.aspx",
+                    "index.php",
+                    "hostingstart.html"
+                ],
+                "netFrameworkVersion": "v4.0",
+                "linuxFxVersion": "[concat('DOCKER|',parameters('acrServer'),'/',parameters('serviceImageName'),':', parameters('serviceImageTag'))]",
+                "requestTracingEnabled": false,
+                "remoteDebuggingEnabled": false,
+                "remoteDebuggingVersion": "VS2019",
+                "httpLoggingEnabled": true,
+                "acrUseManagedIdentityCreds": false,
+                "logsDirectorySizeLimit": 35,
+                "detailedErrorLoggingEnabled": false,
+                "publishingUsername": "$pos-match-webapp-eastus-demo",
+                "scmType": "None",
+                "use32BitWorkerProcess": true,
+                "webSocketsEnabled": false,
+                "alwaysOn": true,
+                "managedPipelineMode": "Integrated",
+                "virtualApplications": [
+                    {
+                        "virtualPath": "/",
+                        "physicalPath": "site\\wwwroot",
+                        "preloadEnabled": true
+                    }
+                ],
+                "loadBalancing": "LeastRequests",
+                "experiments": {
+                    "rampUpRules": []
+                },
+                "autoHealEnabled": false,
+                "vnetRouteAllEnabled": false,
+                "vnetPrivatePortsCount": 0,
+                "localMySqlEnabled": false,
+                "managedServiceIdentityId": 7368,
+                "ipSecurityRestrictions": [
+                    {
+                        "ipAddress": "Any",
+                        "action": "Allow",
+                        "priority": 2147483647,
+                        "name": "Allow all",
+                        "description": "Allow all access"
+                    }
+                ],
+                "scmIpSecurityRestrictions": [
+                    {
+                        "ipAddress": "Any",
+                        "action": "Allow",
+                        "priority": 2147483647,
+                        "name": "Allow all",
+                        "description": "Allow all access"
+                    }
+                ],
+                "scmIpSecurityRestrictionsUseMain": false,
+                "http20Enabled": false,
+                "minTlsVersion": "1.2",
+                "scmMinTlsVersion": "1.2",
+                "ftpsState": "FtpsOnly",
+                "healthCheckPath": "/ready",
+                "preWarmedInstanceCount": 0,
+                "functionsRuntimeScaleMonitoringEnabled": false,
+                "minimumElasticInstanceCount": 0,
+                "azureStorageAccounts": {},
+                "appSettings": [
+                    {
+                        "name": "DOCKER_REGISTRY_SERVER_URL",
+                        "value": "[parameters('acrServer')]"
+                    },
+                    {
+                        "name": "DOCKER_REGISTRY_SERVER_USERNAME",
+                        "value": "[parameters('acrUsername')]"
+                    },
+                    {
+                        "name": "DOCKER_REGISTRY_SERVER_PASSWORD",
+                        "value": "[parameters('acrPassword')]"
+                    },
+                    {
+                        "name": "KeyVaultConfiguration__Address",
+                        "value": "[concat('https://', variables('keyVaultName'),'.vault.azure.net/')]"
+                    },
+                    {
+                        "name": "DS4HTrialMatcherConfiguration__Address",
+                        "value": "[parameters('ds4hServer')]" //todo use DS4H from CS endpoint when supported
+                    },
+                    {
+                        "name": "DS4HTrialMatcherConfiguration__RequestPath",
+                        //todo change after ds4h deployment
+                        //"value": "healthdecisionsupport/trialmatcher/jobs"
+                        "value": "matching/match"
+                    },
+                    {
+                        "name": "DS4HTrialMatcherConfiguration__StatusPath",
+                        "value": "ready"
+                    },
+                    {
+                        "name": "DS4HTrialMatcherConfiguration__UseAsyncEndpoint",
+                        "value": "false"
+                    },
+                    {
+                        "name": "AyalonConfiguration__Address",
+                        "value": "[parameters('ta4hServer')]" //TODO replace when avialable on hosted
+                    },
+                    //  { //restor when avialable
+                    //     "name": "AyalonConfiguration__Address",
+                    //     "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('cognitiveServicesName'))).endpoint]"
+                    // },
+                    {
+                        "name": "AyalonConfiguration__RequestPath",
+                        "value": "language/analyze-text/jobs"
+                    },
+                    {
+                        "name": "AyalonConfiguration__StatusPath",
+                        "value": "language/analyze-text/jobs/ready"
+                    },
+                    {
+                        "name": "AyalonConfiguration__ApiVersion",
+                        "value": "2022-07-01-preview"
+                    },
+                      {
+                        "name": "AyalonConfiguration__ModelVersion",
+                        "value": "2022-08-15-preview"
+                    },
+                    {
+                        "name": "AyalonConfiguration__UseAsyncEndpoint",
+                        "value": true
+                    },
+                    {
+                        "name": "FHIRConfiguration__Address",
+                        "value": "[parameters('fhirServer')]"
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites/hostNameBindings",
+            "apiVersion": "2021-03-01",
+            "name": "[concat(variables('webappName'), '/', variables('webappName'), '.azurewebsites.net')]",
+            "location": "[variables('location')]",
+            "tags": "[parameters('resourceTags')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', variables('webappName'))]"
+            ],
+            "properties": {
+                "siteName": "[variables('webappName')]",
+                "hostNameType": "Verified"
+            }
+        },
+        {
+            "type": "microsoft.operationalinsights/workspaces",
+            "apiVersion": "2021-12-01-preview",
+            "name": "[variables('appInsightsWorkspaceName')]",
+            "location": "eastus",
+            "properties": {
+                "sku": {
+                    "name": "pergb2018"
+                },
+                "retentionInDays": 30,
+                "features": {
+                    "enableLogAccessUsingOnlyResourcePermissions": true
+                },
+                "workspaceCapping": {
+                    "dailyQuotaGb": -1
+                },
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled"
+            }
+        },
+        {
+            "type": "microsoft.insights/components",
+            "apiVersion": "2020-02-02",
+            "name": "[variables('appInsightsInstanceName')]",
+            "location": "[variables('location')]",
+            "kind": "web",
+            "properties": {
+                "Application_Type": "web",
+                "Flow_Type": "Bluefield",
+                "Request_Source": "rest",
+                "RetentionInDays": 90,
+                "WorkspaceResourceId": "[resourceId('microsoft.operationalinsights/workspaces',variables('appInsightsWorkspaceName'))]",
+                "IngestionMode": "LogAnalytics",
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled"
+            },
+            "dependsOn": [
+                "[resourceId('microsoft.operationalinsights/workspaces',variables('appInsightsWorkspaceName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.CognitiveServices/accounts",
+            "apiVersion": "2022-03-01",
+            "name": "[variables('cognitiveServicesName')]",
+            "location": "centralus",
+            "sku": {
+                "name": "S0"
+            },
+            "kind": "CognitiveServices",
+            "properties": {
+                "apiProperties": {},
+                "customSubDomainName": "[variables('cognitiveServicesName')]",
+                "publicNetworkAccess": "Enabled"
+            }
+        }
+        // {
+        //     "name": "[concat(variables('webappName'), '/authsettingsV2')]",
+        //     "type": "Microsoft.Web/sites/config",
+        //     "apiVersion": "2021-02-01",
+        //     "location": "[variables('location')]",
+        //     "properties": {
+        //         "platform": {
+        //             "enabled": true,
+        //             "runtimeVersion": "~1"
+        //         },
+        //         "globalValidation": {
+        //             "requireAuthentication": true,
+        //             "unauthenticatedClientAction": "RedirectToLoginPage",
+        //             "redirectToProvider": "azureactivedirectory"
+        //         },
+        //         "identityProviders": {
+        //             "azureActiveDirectory": {
+        //                 "enabled": true,
+        //                 "registration": {
+        //                     "openIdIssuer": "[concat('https://sts.windows.net/',tenant().tenantId,'/v2.0')]",
+        //                     // "clientId": "[parameters('clientId')]",
+        //                     "clientSecretSettingName": "MICROSOFT_PROVIDER_AUTHENTICATION_SECRET"
+        //                 },
+        //                 "login": {
+        //                     "disableWWWAuthenticate": false
+        //                 },
+        //                 "validation": {
+        //                     "jwtClaimChecks": {},
+        //                     "allowedAudiences": [],
+        //                     "defaultAuthorizationPolicy": {
+        //                         "allowedPrincipals": {}
+        //                     }
+        //                 }
+        //             },
+        //             "login": {
+        //                 "routes": {},
+        //                 "tokenStore": {
+        //                     "enabled": true,
+        //                     "tokenRefreshExtensionHours": 72,
+        //                     "fileSystem": {},
+        //                     "azureBlobStorage": {}
+        //                 },
+        //                 "preserveUrlFragmentsForLogins": false,
+        //                 "cookieExpiration": {
+        //                     "convention": "FixedTime",
+        //                     "timeToExpiration": "08:00:00"
+        //                 },
+        //                 "nonce": {
+        //                     "validateNonce": true,
+        //                     "nonceExpirationInterval": "00:05:00"
+        //                 }
+        //             },
+        //             "httpSettings": {
+        //                 "requireHttps": true,
+        //                 "routes": {
+        //                     "apiPrefix": "/.auth"
+        //                 },
+        //                 "forwardProxy": {
+        //                     "convention": "NoProxy"
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+        // TODO support role definition assigment for managed identity with fhir server
+        //  {
+        //     "type": "Microsoft.Authorization/roleAssignments",
+        //     "apiVersion": "2020-04-01-preview",
+        //     "name": "FHIR Data Reader",
+        //     "scope": "/",
+        //     "properties": {
+        //         "roleDefinitionId": "[variables(parameters('builtInRoleType'))]",
+        //         "principalId": "[parameters('principalId')]"
+        //     }
+        // }
+    ],
+    "outputs": {
+        "WebappObjectId": {
+        "type": "string",
+        "value": "[reference(resourceId('Microsoft.Web/sites',variables('webappName')), '2015-08-01', 'Full').Identity.principalId]",
+        }
+    }
+}
