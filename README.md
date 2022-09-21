@@ -1,7 +1,7 @@
 # Project
 
-This project contains an arm template for easy deployment of clinical trials to FHIR-server patients using Health Desion support service with 
-["New Hope" Trial Matching technology](https://www.microsoft.com/en-us/research/project/project-new-hope-clinical-trials-matching/)
+This project contains an ARM template for easy deployment of "Clinical Trials to FHIR Server Patients Matching" using "Health Decision Support" service with 
+["New Hope" Trial Matching technology](https://www.microsoft.com/en-us/research/project/project-new-hope-clinical-trials-matching/) model
 
 This service is still in preview, for more info please contact healthil-solutions@microsoft.com
 
