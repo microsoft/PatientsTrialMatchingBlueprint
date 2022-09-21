@@ -10,10 +10,10 @@
             "type": "string",
             "defaultValue": "ctmprod.azurecr.io"
         },
-        "ds4hServer": { //TODO remove when fhir input avilable in ds4h
+        "ds4hServer": {
             "type": "string"
         },
-        "ta4hServer": {  //TODO remove when fhir avialable in hosted
+        "ta4hServer": {
             "type": "string"
         },
         "fhirServer": {
@@ -46,11 +46,10 @@
         }
     },
     "variables": {
-        //Names
         "location": "[resourceGroup().location]",
         "suffix": "[concat('-',parameters('nameSuffix'))]",
         "webappName": "[concat(parameters('serviceName'),'-webapp', variables('suffix'))]",
-        "keyVaultName": "[concat(parameters('serviceName'), '-kv', variables('suffix'))]", //override if keyvault name is too long
+        "keyVaultName": "[concat(parameters('serviceName'), '-kv', variables('suffix'))]",
         "servicePlaneName": "[concat(parameters('serviceName'),'-plan',variables('suffix'))]",
         "appInsightsInstanceName": "[concat(parameters('serviceName'),'-ai',variables('suffix'))]",
         "appInsightsWorkspaceName": "[concat(parameters('serviceName'),'-log',variables('suffix'))]",
@@ -58,7 +57,6 @@
         "cognitiveservicesid": "[concat(resourceGroup().id,'/providers/','Microsoft.CognitiveServices/accounts/', variables('cognitiveServicesName'))]"
     },
     "resources": [
-        //TODO: add appinsight?
         {
             "type": "Microsoft.KeyVault/vaults",
             "apiVersion": "2021-11-01-preview",
@@ -310,13 +308,11 @@
                     },
                     {
                         "name": "DS4HTrialMatcherConfiguration__Address",
-                        "value": "[parameters('ds4hServer')]" //todo use DS4H from CS endpoint when supported
+                        "value": "[parameters('ds4hServer')]"
                     },
                     {
                         "name": "DS4HTrialMatcherConfiguration__RequestPath",
-                        //todo change after ds4h deployment
-                        //"value": "healthdecisionsupport/trialmatcher/jobs"
-                        "value": "matching/match"
+                        "value": "healthdecisionsupport/trialmatcher/jobs"
                     },
                     {
                         "name": "DS4HTrialMatcherConfiguration__StatusPath",
@@ -326,14 +322,10 @@
                         "name": "DS4HTrialMatcherConfiguration__UseAsyncEndpoint",
                         "value": "false"
                     },
-                    {
-                        "name": "AyalonConfiguration__Address",
-                        "value": "[parameters('ta4hServer')]" //TODO replace when avialable on hosted
+                    { 
+                         "name": "AyalonConfiguration__Address",
+                         "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('cognitiveServicesName'))).endpoint]"
                     },
-                    //  { //restor when avialable
-                    //     "name": "AyalonConfiguration__Address",
-                    //     "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('cognitiveServicesName'))).endpoint]"
-                    // },
                     {
                         "name": "AyalonConfiguration__RequestPath",
                         "value": "language/analyze-text/jobs"
@@ -430,81 +422,6 @@
                 "publicNetworkAccess": "Enabled"
             }
         }
-        // {
-        //     "name": "[concat(variables('webappName'), '/authsettingsV2')]",
-        //     "type": "Microsoft.Web/sites/config",
-        //     "apiVersion": "2021-02-01",
-        //     "location": "[variables('location')]",
-        //     "properties": {
-        //         "platform": {
-        //             "enabled": true,
-        //             "runtimeVersion": "~1"
-        //         },
-        //         "globalValidation": {
-        //             "requireAuthentication": true,
-        //             "unauthenticatedClientAction": "RedirectToLoginPage",
-        //             "redirectToProvider": "azureactivedirectory"
-        //         },
-        //         "identityProviders": {
-        //             "azureActiveDirectory": {
-        //                 "enabled": true,
-        //                 "registration": {
-        //                     "openIdIssuer": "[concat('https://sts.windows.net/',tenant().tenantId,'/v2.0')]",
-        //                     // "clientId": "[parameters('clientId')]",
-        //                     "clientSecretSettingName": "MICROSOFT_PROVIDER_AUTHENTICATION_SECRET"
-        //                 },
-        //                 "login": {
-        //                     "disableWWWAuthenticate": false
-        //                 },
-        //                 "validation": {
-        //                     "jwtClaimChecks": {},
-        //                     "allowedAudiences": [],
-        //                     "defaultAuthorizationPolicy": {
-        //                         "allowedPrincipals": {}
-        //                     }
-        //                 }
-        //             },
-        //             "login": {
-        //                 "routes": {},
-        //                 "tokenStore": {
-        //                     "enabled": true,
-        //                     "tokenRefreshExtensionHours": 72,
-        //                     "fileSystem": {},
-        //                     "azureBlobStorage": {}
-        //                 },
-        //                 "preserveUrlFragmentsForLogins": false,
-        //                 "cookieExpiration": {
-        //                     "convention": "FixedTime",
-        //                     "timeToExpiration": "08:00:00"
-        //                 },
-        //                 "nonce": {
-        //                     "validateNonce": true,
-        //                     "nonceExpirationInterval": "00:05:00"
-        //                 }
-        //             },
-        //             "httpSettings": {
-        //                 "requireHttps": true,
-        //                 "routes": {
-        //                     "apiPrefix": "/.auth"
-        //                 },
-        //                 "forwardProxy": {
-        //                     "convention": "NoProxy"
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-        // TODO support role definition assigment for managed identity with fhir server
-        //  {
-        //     "type": "Microsoft.Authorization/roleAssignments",
-        //     "apiVersion": "2020-04-01-preview",
-        //     "name": "FHIR Data Reader",
-        //     "scope": "/",
-        //     "properties": {
-        //         "roleDefinitionId": "[variables(parameters('builtInRoleType'))]",
-        //         "principalId": "[parameters('principalId')]"
-        //     }
-        // }
     ],
     "outputs": {
         "WebappObjectId": {
