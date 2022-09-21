@@ -509,7 +509,7 @@
     "outputs": {
         "WebappObjectId": {
         "type": "string",
-        "value": "[reference(resourceId('Microsoft.Web/sites',variables('webappName')), '2015-08-01', 'Full').Identity.principalId]",
+        "value": "[reference(resourceId('Microsoft.Web/sites',variables('webappName')), '2015-08-01', 'Full').Identity.principalId]"
         }
     }
 }
