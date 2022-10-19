@@ -13,12 +13,6 @@
         "ds4hServer": {
             "type": "string"
         },
-        "ta4hServer": {
-            "type": "string"
-        },
-        "fhirServer": {
-            "type": "string"
-        },
         "acrUsername": {
             "type": "string",
             "defaultValue": "ctmprodreader"
@@ -34,7 +28,7 @@
             "type": "string",
             "defaultValue": "latest"
         },
-         "nameSuffix": {
+        "nameSuffix": {
             "type": "string",
             "defaultValue": "[resourceGroup().location]"
         },
@@ -105,10 +99,10 @@
                 "[resourceId('Microsoft.CognitiveServices/accounts', variables('cognitiveServicesName'))]"
             ],
             "properties": {
-                 "value": "[listKeys(variables('cognitiveservicesid'),'2021-10-01').key1]"
+                "value": "[listKeys(variables('cognitiveservicesid'),'2021-10-01').key1]"
             }
         },
-         {
+        {
             "type": "Microsoft.KeyVault/vaults/secrets",
             "name": "[concat(variables('keyVaultName'), '/AyalonConfiguration--APIMSubscriptionKey')]",
             "apiVersion": "2016-10-01",
@@ -322,9 +316,9 @@
                         "name": "DS4HTrialMatcherConfiguration__UseAsyncEndpoint",
                         "value": "false"
                     },
-                    { 
-                         "name": "AyalonConfiguration__Address",
-                         "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('cognitiveServicesName'))).endpoint]"
+                    {
+                        "name": "AyalonConfiguration__Address",
+                        "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('cognitiveServicesName'))).endpoint]"
                     },
                     {
                         "name": "AyalonConfiguration__RequestPath",
@@ -338,17 +332,13 @@
                         "name": "AyalonConfiguration__ApiVersion",
                         "value": "2022-07-01-preview"
                     },
-                      {
+                    {
                         "name": "AyalonConfiguration__ModelVersion",
                         "value": "2022-08-15-preview"
                     },
                     {
                         "name": "AyalonConfiguration__UseAsyncEndpoint",
                         "value": true
-                    },
-                    {
-                        "name": "FHIRConfiguration__Address",
-                        "value": "[parameters('fhirServer')]"
                     }
                 ]
             }
@@ -411,22 +401,30 @@
             "type": "Microsoft.CognitiveServices/accounts",
             "apiVersion": "2022-03-01",
             "name": "[variables('cognitiveServicesName')]",
-            "location": "centralus",
+            "location": "[variables('location')]",
             "sku": {
-                "name": "S0"
+                "name": "S"
             },
-            "kind": "CognitiveServices",
+            "kind": "TextAnalytics",
+            "identity": {
+                "type": "SystemAssigned"
+            },
             "properties": {
                 "apiProperties": {},
                 "customSubDomainName": "[variables('cognitiveServicesName')]",
+                "networkAcls": {
+                    "defaultAction": "Allow",
+                    "virtualNetworkRules": [],
+                    "ipRules": []
+                },
                 "publicNetworkAccess": "Enabled"
             }
         }
     ],
     "outputs": {
         "WebappObjectId": {
-        "type": "string",
-        "value": "[reference(resourceId('Microsoft.Web/sites',variables('webappName')), '2015-08-01', 'Full').Identity.principalId]"
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.Web/sites',variables('webappName')), '2015-08-01', 'Full').Identity.principalId]"
         }
     }
 }

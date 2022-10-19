@@ -2,10 +2,10 @@ Run in powershell to deploy:
 ```pws
 $templateFile = "./template.json"
 $parameterFile="./parameters.json"
-$resourceGroupName="pos-match-blueprint-test3"
+$resourceGroupName="positive-matching-demo-dev"
 New-AzResourceGroup `
   -Name $resourceGroupName `
-  -Location "East US"
+  -Location "westeurope"
 $Resources = New-AzResourceGroupDeployment `
   -ResourceGroupName $resourceGroupName `
   -TemplateFile $templateFile `
